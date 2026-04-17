@@ -84,7 +84,39 @@ This boilerplate must appear in the `<head>` of every AMP page. It must match ch
 - `filter:` on the `<html>` or `<body>` elements
 
 ### Common Gotcha
-`@import url('https://fonts.googleapis.com/...')` inside `<style amp-custom>` is the #1 AMP validation error. It causes a "CSS syntax error" that can cascade and also flag the boilerplate as malformed. Always use a `<link>` tag in the `<head>` instead.
+`@import url('https://fonts.googleapis.com/...')` inside `<style amp-custom>` is the #1 AMP validation error. It causes a "CSS syntax error" that can cascade and also flag the boilerplate as malformed.
+
+### Best Practice: Inline Font Declarations
+
+Do NOT use an external `<link>` tag for Google Fonts -- it creates a render-blocking request (Lighthouse flags ~790ms penalty).
+
+Instead, inline `@font-face` declarations directly in `<style amp-custom>`. This is allowed -- it's `@import` that's banned, not `@font-face`.
+
+```css
+@font-face{
+  font-family:'Inter';
+  font-style:normal;
+  font-weight:700;
+  font-display:swap;
+  src:url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2) format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD
+}
+```
+
+**Key details:**
+- Only include the `latin` unicode-range subset (skip cyrillic, greek, vietnamese) to save CSS bytes
+- Add one `@font-face` per weight you use (400, 500, 600, 700, 800, 900)
+- Fetch the CSS from Google Fonts to get the correct woff2 URLs: `curl -s -A 'Mozilla/5.0' 'https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap'`
+
+### Font Preloading
+
+Add a `<link rel="preload">` in the `<head>` to eliminate the critical request chain (font download waiting on CSS parse):
+
+```html
+<link rel="preload" href="https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2" as="font" type="font/woff2" crossorigin>
+```
+
+The browser starts downloading the font immediately, in parallel with parsing. By the time the `@font-face` declaration is reached, the font is already downloaded.
 
 ## AMP Components Quick Reference
 
@@ -115,31 +147,34 @@ Include the script tag in `<head>` for each component you use.
 ```
 
 ### amp-accordion (FAQ sections)
+
+**Important:** CSS `::after` pseudo-elements on `<h4>` do NOT work reliably inside amp-accordion. AMP's internal component structure overrides the header layout. Use inline `<span>` elements instead.
+
 ```html
 <amp-accordion animate>
   <section>
-    <h4>Question text</h4>
+    <h4><span class="faq-q"><span>Question text</span><span class="faq-caret">&#9662;</span></span></h4>
     <div class="answer">Answer text</div>
   </section>
 </amp-accordion>
 ```
 
-**FAQ caret (down arrow) via CSS:**
+**FAQ caret styling (using inline spans, NOT pseudo-elements):**
 ```css
-amp-accordion h4 {
+.faq-q {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: 100%;
 }
-amp-accordion h4::after {
-  content: "\25BE";
-  font-size: 18px;
+.faq-caret {
   color: #999;
-  margin-left: auto;
-  padding-left: 16px;
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-left: 16px;
   transition: transform 0.2s;
 }
-amp-accordion section[expanded] h4::after {
+amp-accordion section[expanded] .faq-caret {
   transform: rotate(180deg);
 }
 ```
@@ -332,7 +367,39 @@ project/
   CNAME               -- custom domain (if using GitHub Pages)
 ```
 
-AMP pages are ideally single-file. All CSS is inline in `<style amp-custom>`. No external stylesheets except Google Fonts via `<link>`.
+AMP pages are ideally single-file. All CSS is inline in `<style amp-custom>`. No external stylesheets. Google Fonts should be inlined as `@font-face` declarations, not loaded via external `<link>` tags.
+
+## Accessibility
+
+### Main Landmark (Required)
+
+Wrap all content between nav and footer in a `<main>` element. Lighthouse flags this for screen reader navigation.
+
+```html
+<nav>...</nav>
+<main>
+  <!-- all page sections -->
+</main>
+<footer>...</footer>
+```
+
+### Image Alt Text
+
+All `<amp-img>` elements must have descriptive `alt` attributes.
+
+## Image Optimization
+
+Resize images to match their displayed dimensions exactly. If an `<amp-img>` displays at 200x182, the source file should be 200x182 (or 2x for retina: 400x364). Oversized images waste bandwidth and Lighthouse flags them.
+
+Prefer WebP format for transparency + compression. AMP supports WebP natively.
+
+## Lighthouse Warnings to Ignore
+
+### Forced Reflows
+Lighthouse flags "forced reflow" warnings from the AMP runtime (`v0.js`). This is Google's own code doing internal layout calculations. Can't fix, unscored, ignore.
+
+### GitHub Pages Cache TTL
+GitHub Pages sets a 10-minute cache TTL on all assets. Not configurable. Unscored in Lighthouse. To fix, put Cloudflare in front or move to Cloudflare Pages.
 
 ## References
 

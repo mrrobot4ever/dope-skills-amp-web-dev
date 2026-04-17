@@ -32,6 +32,42 @@ From the dopeskills.ai landing page build (2026-04-16).
 
 **Fix:** Use WebP directly -- AMP supports it natively via `<amp-img>`. If you need PNG, ask the user to send as a document/file attachment, not as a photo.
 
+## FAQ Carets: Pseudo-Elements vs Inline Spans
+
+**Problem:** Used CSS `::after` pseudo-element on `<h4>` inside amp-accordion to render a down caret. The caret did not appear or was not positioned correctly because AMP's accordion component overrides the header element's internal layout.
+
+**Fix:** Move the caret into the HTML as an inline `<span>`. Wrap the question text and caret in a flex container `<span class="faq-q">` with `justify-content: space-between`. This is inside the `<h4>`, so AMP's accordion cannot interfere.
+
+## Font Inlining Eliminates Render-Blocking Requests
+
+**Problem:** Using `<link rel="stylesheet" href="https://fonts.googleapis.com/...">` created a render-blocking request that Lighthouse flagged with ~790ms estimated savings.
+
+**Fix:** Inline `@font-face` declarations directly in `<style amp-custom>`. Only include the latin unicode-range subset. Also add `<link rel="preload" as="font" crossorigin>` for the woff2 file to eliminate the critical request chain (font download waiting on CSS parse). This is `@font-face` which IS allowed -- it's `@import` that's banned.
+
+## Image Sizing for Lighthouse
+
+**Problem:** Logo was 523x477 but displayed at 300x274. Lighthouse flagged it as oversized.
+
+**Fix:** Resize the source image to match displayed dimensions exactly. Use PIL: `img.resize((300, 274), Image.LANCZOS)`.
+
+## GitHub Pages Cache TTL
+
+**Problem:** Lighthouse flagged 10-minute cache TTL on static assets.
+
+**Fix:** Cannot be fixed on GitHub Pages -- they set the TTL and it's not configurable. Options: put Cloudflare in front, or move to Cloudflare Pages. Warning is unscored so safe to ignore.
+
+## AMP Runtime Forced Reflows
+
+**Problem:** Lighthouse flags forced reflows from `v0.js`.
+
+**Fix:** Can't fix -- it's Google's own AMP runtime code. Unscored, ignore.
+
+## Main Landmark for Accessibility
+
+**Problem:** Lighthouse warned about missing main landmark for screen reader navigation.
+
+**Fix:** Wrap all content between `<nav>` and `<footer>` in a `<main>` element.
+
 ## AMP Shimmer Animation
 
 **Problem:** Wanted a shimmer/gleam effect on CTA buttons but AMP doesn't allow JavaScript.
